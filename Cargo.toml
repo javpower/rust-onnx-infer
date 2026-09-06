@@ -1,0 +1,38 @@
+[package]
+name = "rust-onnx-infer"
+version = "0.1.0"
+edition = "2021"
+description = "基于 ONNX Runtime 的视觉模型推理库（分类/检测/分割/SAM/抠图/增强/特征匹配/SAHI），静态链接、自包含"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/javpower/rust-onnx-infer"
+readme = "README.md"
+keywords = ["onnx", "yolo", "inference", "computer-vision", "sam"]
+categories = ["computer-vision", "multimedia::images", "science"]
+
+[dependencies]
+ort = { version = "=2.0.0-rc.10", features = ["download-binaries", "coreml"] }
+ndarray = "0.16"
+image = "0.25"
+fast_image_resize = { version = "5", features = ["image"] }
+rayon = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+thiserror = "2"
+anyhow = "1"
+regex = "1"
+async-trait = "0.1"
+tokenizers = { version = "0.21", default-features = false, features = ["onig", "hf-hub"] }
+rqrr = "0.8"
+
+[features]
+default = []
+init-tracing = ["dep:tracing-subscriber"]
+
+[dev-dependencies]
+tracing-subscriber = "0.3"
+imageproc = "0.25"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

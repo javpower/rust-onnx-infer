@@ -1,0 +1,33 @@
+# ===== Rust 构建产物 =====
+/target
+**/*.rs.bk
+
+# ===== 模型权重与数据集（本地管理，不入库）=====
+# 按引擎组织的模型库（9.2GB，见 README「模型目录」）
+/models/
+# 测试用模型散件
+/testmodels/
+# 根目录实验残留的大文件
+/mobileclip_blt.ts
+*.pt
+*.ts
+*.bin
+
+# ===== 本地文档 =====
+/docs/specs/
+
+# ===== 示例运行输出 =====
+*_result.jpg
+*_result.png
+/output/
+
+# ===== macOS / IDE =====
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# ===== 环境与密钥 =====
+.env
+*.token

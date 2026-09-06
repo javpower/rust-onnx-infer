@@ -1,0 +1,8 @@
+# 本项目构建配置。
+#
+# 清空 pkg-config 搜索路径：防止 ort-sys 通过 Homebrew 的 onnxruntime.pc
+# 链接系统动态库（libonnxruntime.dylib），确保走 `download-binaries` 静态链接，
+# 产物为不依赖环境的自包含二进制（README「构建说明」）。
+[env]
+PKG_CONFIG_PATH = ""
+PKG_CONFIG_LIBDIR = ""
