@@ -145,8 +145,8 @@ impl PortraitMattingEngine {
     /// 模型输入 H/W 是否为动态维度（基类对动态维度回退 640，不能依赖字段值）。
     fn is_dynamic_input(base: &BaseOnnxEngine) -> bool {
         let session = base.session.lock().unwrap();
-        session.inputs.first().is_some_and(|input| {
-            matches!(&input.input_type, ort::value::ValueType::Tensor { shape, .. }
+        session.inputs().first().is_some_and(|input| {
+            matches!(input.dtype(), ort::value::ValueType::Tensor { shape, .. }
                 if shape.len() >= 4 && (shape[2] < 0 || shape[3] < 0))
         })
     }

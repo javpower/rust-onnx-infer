@@ -31,9 +31,9 @@
   `categories`，或逗号分隔格式）。
 - **内置 SAHI 切片推理** —— 大图小目标场景提升召回，支持 GREEDYNMM / NMM / NMS 合并
   与 IoU / IOS 度量。
-- **GPU 加速 + 优雅回退** —— macOS 启用 CoreML（Apple Silicon 可走 ANE/NPU），CUDA 按
-  feature 启用；Qualcomm QNN、DirectML、OpenVINO、Android NNAPI、华为 CANN 均可通过
-  `ort` feature 开启，不可用时自动回退 CPU。
+- **GPU 加速 + 优雅回退** —— 执行提供器由引入方按目标平台通过 feature 启用：macOS 加
+  `coreml`（Apple Silicon 可走 ANE/NPU）、NVIDIA 加 `cuda`，另有 `tensorrt` / `directml` /
+  `openvino` / `rocm`；未启用对应 feature 时该设备类型自动回退 CPU。
 
 ## 安装
 
@@ -123,10 +123,14 @@ cargo run --example onnx_inference_example
 - 首次构建时 `ort` 会自动下载 ONNX Runtime 预编译**静态库**（需网络），之后离线可重复构建。
 - 项目内 `.cargo/config.toml` 清空了 `PKG_CONFIG_PATH` / `PKG_CONFIG_LIBDIR`：防止 ort-sys
   通过 pkg-config 找到系统的 onnxruntime 动态库，确保静态链接、产物自包含。
-- 加速后端（Execution Provider）：默认 CPU；macOS 启用 **CoreML**（Apple Silicon 可走
-  ANE/NPU）；**CUDA**（NVIDIA GPU）按 feature 启用。其他 NPU 后端（Qualcomm QNN、
-  Android NNAPI、DirectML、OpenVINO、华为 CANN）在 `ort` crate 中均有对应 feature，
-  启用后 `DeviceType` 枚举与工厂入口即已就绪，不可用时自动回退 CPU。
+- 加速后端（Execution Provider）：默认 CPU，按需启用（透传至 `ort` 同名 feature）：
+  `features = ["coreml"]`（Apple Silicon 可走 ANE/NPU）、`features = ["cuda"]`（NVIDIA），
+  以及 `tensorrt` / `directml` / `openvino` / `rocm`。启用后 `DeviceType` 枚举与工厂入口
+  即已就绪；未启用 feature 时选择该设备类型会回退 CPU 并给出警告。
+  注意：同时启用多个无单一预编译二进制覆盖的 EP（如 `cuda` + `coreml`）时 `ort` 会在
+  链接期报错，可另加 `lax-feature-matching` 回退最接近的二进制。
+- 二进制获取方式同样由引入方决定：默认 `download-binaries`（自动下载静态库）；改为
+  `default-features = false` 并启用 `load-dynamic` 可在运行时动态加载 `onnxruntime` 库。
 - 所有模型的 NMS/CTC 解码/坐标还原等后处理在 CPU 纯 Rust 执行，EP 只加速模型前向。
 - 产物为自包含二进制，运行时仅依赖 macOS 系统自带框架，无 OpenCV / ONNX Runtime
   动态库依赖（可用 `otool -L target/release/examples/onnx_inference_example` 验证）。

@@ -29,7 +29,7 @@
 //!   不适用统一推理 trait，因此本引擎不实现
 //!   [`crate::core::engine::OnnxInferenceEngine`]，仅提供固有方法 `match_images`。
 
-use ort::tensor::TensorElementType;
+use ort::value::TensorElementType;
 use ort::value::{DynValue, Tensor, ValueType};
 
 use crate::core::base::BaseOnnxEngine;
@@ -82,14 +82,14 @@ impl RomaV2Engine {
         // 校验模型为双输入（img_A + img_B）
         let input1_name = {
             let session = base.session.lock().unwrap();
-            if session.inputs.len() < 2 {
+            if session.inputs().len() < 2 {
                 return Err(VisionError::inference(format!(
                     "RoMaV2 模型应为双输入（img_A + img_B），当前输入数: {}",
-                    session.inputs.len()
+                    session.inputs().len()
                 )));
             }
             // 获取第二个输入名（按名称绑定）
-            session.inputs[1].name.clone()
+            session.inputs()[1].name().to_string()
         };
 
         tracing::info!(

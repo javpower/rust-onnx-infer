@@ -262,10 +262,10 @@ impl GestureEngine {
         // 读取真实输入 shape（平面/逐点输入不是 NCHW，基类解析不适用）
         let dims: Vec<i64> = {
             let session = base.session.lock().unwrap();
-            let input = session.inputs.first().ok_or_else(|| {
+            let input = session.inputs().first().ok_or_else(|| {
                 VisionError::inference("手势分类模型缺少输入定义")
             })?;
-            match &input.input_type {
+            match input.dtype() {
                 ort::value::ValueType::Tensor { shape, .. } => shape.iter().copied().collect(),
                 other => {
                     return Err(VisionError::inference(format!(

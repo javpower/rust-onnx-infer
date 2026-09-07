@@ -170,22 +170,22 @@ impl DedodeGEngine {
         // ---- descriptor 输入名（image + keypoints）----
         let (descriptor_image_name, descriptor_kpts_name) = {
             let session = descriptor_base.session.lock().unwrap();
-            if session.inputs.len() < 2 {
+            if session.inputs().len() < 2 {
                 return Err(VisionError::invalid_argument(format!(
                     "DeDoDe descriptor ONNX 至少需要 2 个输入，实际: {}",
-                    session.inputs.len()
+                    session.inputs().len()
                 )));
             }
             (
-                session.inputs[0].name.clone(),
-                session.inputs[1].name.clone(),
+                session.inputs()[0].name().to_string(),
+                session.inputs()[1].name().to_string(),
             )
         };
 
         // ---- detector 第二输入 num_keypoints 名（如果输入数 >= 2）----
         let detector_num_kpts_name = {
             let session = base.session.lock().unwrap();
-            session.inputs.get(1).map(|i| i.name.clone())
+            session.inputs().get(1).map(|i| i.name().to_string())
         };
 
         // ---- 找 detector 概率输出名（keypoint_probs / confidence / score）----
@@ -207,7 +207,7 @@ impl DedodeGEngine {
             found
         };
 
-        let detector_num_inputs = base.session.lock().unwrap().inputs.len();
+        let detector_num_inputs = base.session.lock().unwrap().inputs().len();
         tracing::info!(
             "DedodeG Engine initialized: detector='{}', descriptor='{}', inputSize={}x{}, numInput={}, detectorProbsName={:?}, descriptorOutputs={:?}, confThreshold={}, numKeypoints={}",
             detector_model_path.display(),
@@ -594,15 +594,15 @@ fn snapshot_outputs(outputs: &SessionOutputs<'_>, names: &[String]) -> Result<Ve
             }
         };
         let data = match ty {
-            ort::tensor::TensorElementType::Float32 => {
+            ort::value::TensorElementType::Float32 => {
                 let (_, view) = value.try_extract_tensor::<f32>()?;
                 TensorData::F32(view.to_vec())
             }
-            ort::tensor::TensorElementType::Int64 => {
+            ort::value::TensorElementType::Int64 => {
                 let (_, view) = value.try_extract_tensor::<i64>()?;
                 TensorData::I64(view.to_vec())
             }
-            ort::tensor::TensorElementType::Int32 => {
+            ort::value::TensorElementType::Int32 => {
                 // 上游 readTensorAsFloat 直接转 f32
                 let (_, view) = value.try_extract_tensor::<i32>()?;
                 TensorData::F32(view.iter().map(|&x| x as f32).collect())

@@ -52,13 +52,13 @@ fn main() -> anyhow::Result<()> {
         // 与 src/core/session_factory.rs 一致地创建会话（这里用默认 CPU/线程配置即可）
         let mut session = Session::builder()?.commit_from_file(path)?;
 
-        println!("-- 输入 ({}):", session.inputs.len());
-        for (i, input) in session.inputs.iter().enumerate() {
-            print_value_info(i, &input.name, &input.input_type);
+        println!("-- 输入 ({}):", session.inputs().len());
+        for (i, input) in session.inputs().iter().enumerate() {
+            print_value_info(i, input.name(), input.dtype());
         }
-        println!("-- 输出 ({}):", session.outputs.len());
-        for (i, output) in session.outputs.iter().enumerate() {
-            print_value_info(i, &output.name, &output.output_type);
+        println!("-- 输出 ({}):", session.outputs().len());
+        for (i, output) in session.outputs().iter().enumerate() {
+            print_value_info(i, output.name(), output.dtype());
         }
 
         // 可选：零张量试推理，实测输出 shape（单模型失败不中断整体探测）
@@ -116,12 +116,12 @@ fn run_zero_test(session: &mut Session, h: i64, w: i64, force: bool) -> anyhow::
     );
 
     // 先克隆输入/输出名，避免与 run 的可变借用冲突
-    let input_names: Vec<String> = session.inputs.iter().map(|i| i.name.clone()).collect();
-    let output_names: Vec<String> = session.outputs.iter().map(|o| o.name.clone()).collect();
+    let input_names: Vec<String> = session.inputs().iter().map(|i| i.name().to_string()).collect();
+    let output_names: Vec<String> = session.outputs().iter().map(|o| o.name().to_string()).collect();
 
     let mut inputs = Vec::new();
-    for (input, name) in session.inputs.iter().zip(&input_names) {
-        let ValueType::Tensor { shape, .. } = &input.input_type else {
+    for (input, name) in session.inputs().iter().zip(&input_names) {
+        let ValueType::Tensor { shape, .. } = input.dtype() else {
             anyhow::bail!("输入 '{}' 不是张量，跳过试推理", name);
         };
         // 尺寸维度：force 时第 2/3 维无条件填 H/W；否则仅替换 -1（其余 -1 维填 1）

@@ -1148,7 +1148,7 @@ fn snapshot_f32_output(
         }
     };
     match ty {
-        ort::tensor::TensorElementType::Float32 => {
+        ort::value::TensorElementType::Float32 => {
             let (_, view) = value.try_extract_tensor::<f32>()?;
             Ok((shape, view.to_vec()))
         }
@@ -1177,7 +1177,7 @@ fn snapshot_bool_output(
         }
     };
     match ty {
-        ort::tensor::TensorElementType::Bool => {
+        ort::value::TensorElementType::Bool => {
             let (_, view) = value.try_extract_tensor::<bool>()?;
             Ok((shape, view.to_vec()))
         }

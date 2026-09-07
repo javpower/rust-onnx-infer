@@ -1,7 +1,8 @@
 [package]
 name = "rust-onnx-infer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+rust-version = "1.88"
 description = "基于 ONNX Runtime 的视觉模型推理库（分类/检测/分割/SAM/抠图/增强/特征匹配/SAHI），静态链接、自包含"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/javpower/rust-onnx-infer"
@@ -10,10 +11,10 @@ keywords = ["onnx", "yolo", "inference", "computer-vision", "sam"]
 categories = ["computer-vision", "multimedia::images", "science"]
 
 [dependencies]
-ort = { version = "=2.0.0-rc.10", features = ["download-binaries", "coreml"] }
-ndarray = "0.16"
+# rc 期间 API 仍会变动，钉死精确版本；二进制获取方式与执行提供器经 [features] 透传给引入方决定
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "tracing", "copy-dylibs", "tls-native", "api-27"] }
 image = "0.25"
-fast_image_resize = { version = "5", features = ["image"] }
+fast_image_resize = { version = "6", features = ["image"] }
 rayon = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 tracing = "0.1"
@@ -22,16 +23,29 @@ thiserror = "2"
 anyhow = "1"
 regex = "1"
 async-trait = "0.1"
-tokenizers = { version = "0.21", default-features = false, features = ["onig", "hf-hub"] }
-rqrr = "0.8"
+tokenizers = { version = "0.23", default-features = false, features = ["onig", "hf-hub"] }
+rqrr = "0.11"
 
 [features]
-default = []
+default = ["download-binaries"]
+# ONNX Runtime 预编译二进制（静态链接、自包含）；关闭后由引入方自行提供运行时库（系统库 / ORT_LIB_PATH）
+download-binaries = ["ort/download-binaries"]
+# 运行时动态加载 onnxruntime 动态库（与 download-binaries 二选一）
+load-dynamic = ["ort/load-dynamic"]
+# 执行提供器：由引入方按目标平台/硬件启用；未启用时对应 DeviceType 自动回退 CPU
+cuda = ["ort/cuda"]
+tensorrt = ["ort/tensorrt"]
+directml = ["ort/directml"]
+coreml = ["ort/coreml"]
+openvino = ["ort/openvino"]
+rocm = ["ort/rocm"]
+# EP 组合无匹配预编译二进制时回退最接近的二进制（默认直接链接期报错）
+lax-feature-matching = ["ort/lax-feature-matching"]
 init-tracing = ["dep:tracing-subscriber"]
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
-imageproc = "0.25"
+imageproc = "0.27"
 
 [profile.release]
 opt-level = 3

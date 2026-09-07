@@ -225,8 +225,8 @@ impl ActionRecognitionEngine {
         // 这里自行解析；缺省回退 3/30/18/2）
         let (num_channels, num_frames, num_joints, num_persons) = {
             let session = base.session.lock().unwrap();
-            match session.inputs.first() {
-                Some(input) => match &input.input_type {
+            match session.inputs().first() {
+                Some(input) => match input.dtype() {
                     ort::value::ValueType::Tensor { shape, .. } if shape.len() == 5 => (
                         shrink_to_usize(shape[1], 3),
                         shrink_to_usize(shape[2], 30),
@@ -243,9 +243,9 @@ impl ActionRecognitionEngine {
         let num_classes = {
             let session = base.session.lock().unwrap();
             session
-                .outputs
+                .outputs()
                 .first()
-                .and_then(|o| match &o.output_type {
+                .and_then(|o| match o.dtype() {
                     ort::value::ValueType::Tensor { shape, .. } if shape.len() == 2 && shape[1] > 0 => {
                         Some(shape[1] as usize)
                     }

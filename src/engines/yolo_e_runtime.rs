@@ -1286,9 +1286,9 @@ fn session_input_names(engine: &BaseOnnxEngine) -> Vec<String> {
         .session
         .lock()
         .unwrap()
-        .inputs
+        .inputs()
         .iter()
-        .map(|i| i.name.clone())
+        .map(|i| i.name().to_string())
         .collect()
 }
 

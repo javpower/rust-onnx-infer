@@ -113,8 +113,8 @@ impl DeblurEngine {
             let session = base.session.lock().unwrap();
             let mut dynamic = true;
             let (mut h, mut w) = (0i32, 0i32);
-            if let Some(input) = session.inputs.first() {
-                if let ort::value::ValueType::Tensor { shape, .. } = &input.input_type {
+            if let Some(input) = session.inputs().first() {
+                if let ort::value::ValueType::Tensor { shape, .. } = input.dtype() {
                     let dims: Vec<i64> = shape.iter().copied().collect();
                     if dims.len() >= 4 && dims[2] > 0 && dims[3] > 0 {
                         dynamic = false;

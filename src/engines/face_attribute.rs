@@ -225,9 +225,9 @@ impl AgeGenderEngine {
         let nhwc = {
             let session = base.session.lock().unwrap();
             session
-                .inputs
+                .inputs()
                 .first()
-                .and_then(|input| match &input.input_type {
+                .and_then(|input| match input.dtype() {
                     ValueType::Tensor { shape, .. } => {
                         let dims: Vec<i64> = shape.iter().copied().collect();
                         Some(dims.len() == 4 && dims.get(3) == Some(&3) && dims.get(1) != Some(&3))

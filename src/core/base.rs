@@ -158,11 +158,11 @@ impl BaseOnnxEngine {
 
         let mut base = BaseOnnxEngine {
             input_name: session
-                .inputs
+                .inputs()
                 .first()
-                .map(|i| i.name.clone())
+                .map(|i| i.name().to_string())
                 .unwrap_or_else(|| "images".to_string()),
-            output_names: session.outputs.iter().map(|o| o.name.clone()).collect(),
+            output_names: session.outputs().iter().map(|o| o.name().to_string()).collect(),
             labels: None,
             input_height: input_height_v,
             input_width: input_width_v,
@@ -193,13 +193,13 @@ impl BaseOnnxEngine {
     /// 从会话元信息解析输入尺寸（NCHW；动态维度警告并保留默认值）。
     fn load_input_info(&mut self) {
         let session = self.session.lock().unwrap();
-        let Some(input) = session.inputs.first() else {
+        let Some(input) = session.inputs().first() else {
             return;
         };
-        if let Some(name) = session.inputs.first().map(|i| i.name.clone()) {
+        if let Some(name) = session.inputs().first().map(|i| i.name().to_string()) {
             self.input_name = name;
         }
-        if let ort::value::ValueType::Tensor { shape, .. } = &input.input_type {
+        if let ort::value::ValueType::Tensor { shape, .. } = input.dtype() {
             let dims: Vec<i64> = shape.iter().copied().collect();
             if dims.len() >= 4 {
                 if dims[1] > 0 {
@@ -241,7 +241,7 @@ impl BaseOnnxEngine {
         };
         for key in ["names", "labels", "categories"] {
             let value = match meta.custom(key) {
-                Ok(Some(v)) if !v.is_empty() => v,
+                Some(v) if !v.is_empty() => v,
                 _ => continue,
             };
             let labels = parse_labels(&value);
@@ -487,16 +487,16 @@ fn snapshot_output(name: &str, value: &ort::value::DynValue) -> Result<TensorOut
     };
 
     let data = match ty {
-        ort::tensor::TensorElementType::Float32 => {
+        ort::value::TensorElementType::Float32 => {
             let (_, view) = value.try_extract_tensor::<f32>()?;
             TensorData::F32(view.to_vec())
         }
         // legacy f64 导出兼容：快照时转 f32（数值等价），下游统一按 f32 消费
-        ort::tensor::TensorElementType::Float64 => {
+        ort::value::TensorElementType::Float64 => {
             let (_, view) = value.try_extract_tensor::<f64>()?;
             TensorData::F32(view.iter().map(|&v| v as f32).collect())
         }
-        ort::tensor::TensorElementType::Int64 => {
+        ort::value::TensorElementType::Int64 => {
             let (_, view) = value.try_extract_tensor::<i64>()?;
             TensorData::I64(view.to_vec())
         }

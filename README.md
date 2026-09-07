@@ -32,9 +32,10 @@ Every engine behind one unified sync/async API, compiled into a single self-cont
   (YOLO `names` / `labels` / `categories`, or comma-separated lists).
 - **Built-in SAHI** — sliced inference for small objects in large images, with GREEDYNMM /
   NMM / NMS merging and IoU / IOS metrics.
-- **GPU acceleration with graceful fallback** — CoreML on Apple Silicon (ANE/NPU), CUDA via
-  feature flag; Qualcomm QNN, DirectML, OpenVINO, Android NNAPI and Huawei CANN all available
-  through `ort` features. Unavailable providers fall back to CPU automatically.
+- **GPU acceleration with graceful fallback** — execution providers are opt-in per target
+  platform via crate features: `coreml` on Apple Silicon (ANE/NPU), `cuda` on NVIDIA GPUs,
+  plus `tensorrt` / `directml` / `openvino` / `rocm`. Devices whose feature isn't enabled
+  fall back to CPU automatically.
 
 ## Installation
 
@@ -126,11 +127,16 @@ cargo run --example onnx_inference_example
 - The repo's `.cargo/config.toml` clears `PKG_CONFIG_PATH` / `PKG_CONFIG_LIBDIR` so that
   `ort-sys` cannot pick up a system onnxruntime shared library via pkg-config — guaranteeing
   static linking and self-contained artifacts.
-- Acceleration backends (Execution Providers): CPU by default; **CoreML** enabled on macOS
-  (Apple Silicon can use the ANE/NPU); **CUDA** enabled via feature flag. Other NPU backends
-  (Qualcomm QNN, Android NNAPI, DirectML, OpenVINO, Huawei CANN) have corresponding `ort`
-  features — once enabled, the `DeviceType` enum and factory entry points are ready, and
-  unavailable providers fall back to CPU automatically.
+- Acceleration backends (Execution Providers): CPU by default; enable per platform (passed
+  through to the same-named `ort` features): `features = ["coreml"]` on macOS (Apple Silicon
+  can use the ANE/NPU), `features = ["cuda"]` for NVIDIA GPUs, likewise `tensorrt` /
+  `directml` / `openvino` / `rocm`. Once enabled, the `DeviceType` enum and factory entry
+  points are ready; selecting a device without its feature falls back to CPU with a warning.
+  Enabling multiple EPs with no single prebuilt binary covering them (e.g. `cuda` + `coreml`)
+  fails at link time — add `lax-feature-matching` to fall back to the closest binary.
+- Binary provisioning is also up to the consumer: `download-binaries` (default) fetches
+  prebuilt ONNX Runtime static libraries; switch to `default-features = false` plus
+  `load-dynamic` to load `onnxruntime` dynamically at runtime.
 - All post-processing (NMS / CTC decoding / coordinate restoration) runs in pure Rust on the
   CPU; execution providers only accelerate the model forward pass.
 - The artifact is self-contained: at runtime it only depends on OS-bundled frameworks, with no

@@ -504,7 +504,7 @@ fn snapshot_f32(
         .ok_or_else(|| VisionError::inference(format!("missing output '{name}'")))?;
     match value.dtype() {
         ort::value::ValueType::Tensor {
-            ty: ort::tensor::TensorElementType::Float32,
+            ty: ort::value::TensorElementType::Float32,
             ..
         } => {
             let (_, view) = value.try_extract_tensor::<f32>()?;

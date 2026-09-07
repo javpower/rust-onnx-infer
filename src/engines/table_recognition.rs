@@ -385,7 +385,7 @@ impl TableRecognitionEngine {
             // 先绑定再解构：Result<Metadata> 的临时值必须先于 guard 释放
             let meta_result = guard.metadata();
             if let Ok(meta) = meta_result {
-                if let Ok(Some(value)) = meta.custom("character") {
+                if let Some(value) = meta.custom("character").filter(|v| !v.is_empty()) {
                     let lines: Vec<String> =
                         value.lines().map(|s| s.trim_end().to_string()).collect();
                     if !lines.is_empty() {

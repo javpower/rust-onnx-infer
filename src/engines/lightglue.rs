@@ -24,7 +24,7 @@
 
 use std::collections::HashSet;
 
-use ort::tensor::TensorElementType;
+use ort::value::TensorElementType;
 use ort::value::{DynValue, Tensor, ValueType};
 
 use crate::core::base::BaseOnnxEngine;
@@ -77,9 +77,9 @@ impl LightGlueEngine {
         // 检测模型输入格式
         let (dual_input, input1_name) = {
             let session = base.session.lock().unwrap();
-            if session.inputs.len() >= 2 {
+            if session.inputs().len() >= 2 {
                 // 获取第二个输入名
-                let name = session.inputs[1].name.clone();
+                let name = session.inputs()[1].name().to_string();
                 (true, Some(name))
             } else {
                 (false, None)

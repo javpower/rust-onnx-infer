@@ -157,13 +157,13 @@ impl LoMaREngine {
 
         let input_names: Vec<String> = {
             let session = base.session.lock().unwrap();
-            if session.inputs.len() != 4 {
+            if session.inputs().len() != 4 {
                 return Err(VisionError::invalid_argument(format!(
                     "LoMa-R 模型应恰好 4 个输入 (kpts0/kpts1/desc0/desc1)，实际: {}",
-                    session.inputs.len()
+                    session.inputs().len()
                 )));
             }
-            session.inputs[..4].iter().map(|i| i.name.clone()).collect()
+            session.inputs()[..4].iter().map(|i| i.name().to_string()).collect()
         };
         let names = [
             input_names[0].clone(),
