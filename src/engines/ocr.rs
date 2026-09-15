@@ -394,14 +394,80 @@ impl OcrDetector {
                 continue;
             }
 
-            regions.push(TextRegion::from_bbox(x1, y1, x2, y2, score));
+            // 主轴方向（协方差最大方向）= 文字行方向：倾斜文字也能得到贴合的旋转框
+            let n = comp.pixels.len() as f32;
+            let (mut cxs, mut cys) = (0f32, 0f32);
+            for &idx in &comp.pixels {
+                let i = idx as usize;
+                cxs += (i % map_w) as f32;
+                cys += (i / map_w) as f32;
+            }
+            let (cx_avg, cy_avg) = (cxs / n, cys / n);
+            let (mut sxx, mut syy, mut sxy) = (0f32, 0f32, 0f32);
+            for &idx in &comp.pixels {
+                let i = idx as usize;
+                let dx = (i % map_w) as f32 - cx_avg;
+                let dy = (i / map_w) as f32 - cy_avg;
+                sxx += dx * dx;
+                syy += dy * dy;
+                sxy += dx * dy;
+            }
+            let theta = 0.5 * (2.0 * sxy).atan2(sxx - syy);
+            let (ux, uy) = (theta.cos(), theta.sin());
+            let (vx, vy) = (-uy, ux);
+            let (mut u_min, mut u_max, mut v_min, mut v_max) =
+                (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+            for &idx in &comp.pixels {
+                let i = idx as usize;
+                let dx = (i % map_w) as f32 - cx_avg;
+                let dy = (i / map_w) as f32 - cy_avg;
+                let pu = dx * ux + dy * uy;
+                let pv = -dx * uy + dy * ux;
+                u_min = u_min.min(pu);
+                u_max = u_max.max(pu);
+                v_min = v_min.min(pv);
+                v_max = v_max.max(pv);
+            }
+            let span_u = u_max - u_min;
+            let span_v = v_max - v_min;
+            // 官方 DB unclip：offset = 面积 × ratio ÷ 周长（每侧外扩距离）
+            let offset = span_u * span_v * self.det_unclip_ratio / (2.0 * (span_u + span_v));
+            let u_half = span_u * 0.5 + offset;
+            let v_half = span_v * 0.5 + offset;
+
+            // 四角（原图坐标）：p0→p1 沿长轴（文字方向）
+            let quad = [
+                [
+                    (cx_avg - ux * u_half - vx * v_half) * scale_x,
+                    (cy_avg - uy * u_half - vy * v_half) * scale_y,
+                ],
+                [
+                    (cx_avg + ux * u_half - vx * v_half) * scale_x,
+                    (cy_avg + uy * u_half - vy * v_half) * scale_y,
+                ],
+                [
+                    (cx_avg + ux * u_half + vx * v_half) * scale_x,
+                    (cy_avg + uy * u_half + vy * v_half) * scale_y,
+                ],
+                [
+                    (cx_avg - ux * u_half + vx * v_half) * scale_x,
+                    (cy_avg - uy * u_half + vy * v_half) * scale_y,
+                ],
+            ];
+            regions.push(TextRegion { quad, score });
         }
 
-        // 阅读顺序排序：先上后下、先左后右（官方不做排序，识别输入更稳定）
+        // 阅读顺序排序：先上后下、先左后右（按行中心 y 再 x，识别输入更稳定）
         regions.sort_by(|a, b| {
-            let ka = (a.quad[0][1], a.quad[0][0]);
-            let kb = (b.quad[0][1], b.quad[0][0]);
-            ka.partial_cmp(&kb).unwrap_or(Ordering::Equal)
+            let ay = (a.quad[0][1] + a.quad[3][1]) * 0.5;
+            let by = (b.quad[0][1] + b.quad[3][1]) * 0.5;
+            let cmp = ay.partial_cmp(&by).unwrap_or(Ordering::Equal);
+            if cmp != Ordering::Equal {
+                return cmp;
+            }
+            let ax = (a.quad[0][0] + a.quad[2][0]) * 0.5;
+            let bx = (b.quad[0][0] + b.quad[2][0]) * 0.5;
+            ax.partial_cmp(&bx).unwrap_or(Ordering::Equal)
         });
 
         tracing::info!("OCR det: {} text regions", regions.len());
@@ -541,18 +607,54 @@ impl OcrRecognizer {
 
     /// 从原图裁剪文本区域（轴对齐外接框 + 少量 padding，clamp 到图内）。
     fn crop_region(&self, image: &Image, region: &TextRegion) -> Result<Image> {
-        let (fx1, fy1, fx2, fy2) = region.axis_aligned_bbox();
-        let pad = REGION_CROP_PADDING as f32;
-        let left = ((fx1 - pad).floor() as i32).clamp(0, image.width() as i32 - 1);
-        let top = ((fy1 - pad).floor() as i32).clamp(0, image.height() as i32 - 1);
-        let right = ((fx2 + pad).ceil() as i32).clamp(left + 1, image.width() as i32);
-        let bottom = ((fy2 + pad).ceil() as i32).clamp(top + 1, image.height() as i32);
-        image.crop(
-            left as usize,
-            top as usize,
-            (right - left) as usize,
-            (bottom - top) as usize,
-        )
+        // 旋转四边形逆映射双线性采样：把倾斜的文本行「摆正」为水平图再送识别
+        let q = &region.quad;
+        let dist = |ax: f32, ay: f32, bx: f32, by: f32| -> f32 {
+            ((bx - ax).powi(2) + (by - ay).powi(2)).sqrt()
+        };
+        let out_w = (dist(q[0][0], q[0][1], q[1][0], q[1][1])
+            .max(dist(q[3][0], q[3][1], q[2][0], q[2][1])))
+        .round() as usize;
+        let out_h = (dist(q[1][0], q[1][1], q[2][0], q[2][1])
+            .max(dist(q[0][0], q[0][1], q[3][0], q[3][1])))
+        .round() as usize;
+        let (out_w, out_h) = (out_w.max(8), out_h.max(8));
+
+        let ic = image.channels();
+        let (iw, ih) = (image.width(), image.height());
+        let px = image.data();
+
+        let mut data = vec![0u8; out_w * out_h * 3];
+        for oy in 0..out_h {
+            let fy = oy as f32 / out_h as f32;
+            for ox in 0..out_w {
+                let fx = ox as f32 / out_w as f32;
+                let sx = q[0][0] + (q[1][0] - q[0][0]) * fx + (q[3][0] - q[0][0]) * fy;
+                let sy = q[0][1] + (q[1][1] - q[0][1]) * fx + (q[3][1] - q[0][1]) * fy;
+                if sx < 0.0 || sy < 0.0 || sx >= iw as f32 || sy >= ih as f32 {
+                    continue;
+                }
+                let x0 = sx.floor() as usize;
+                let y0 = sy.floor() as usize;
+                let x1 = (x0 + 1).min(iw - 1);
+                let y1 = (y0 + 1).min(ih - 1);
+                let fxx = sx - x0 as f32;
+                let fyy = sy - y0 as f32;
+                for ch in 0..3 {
+                    let src_ch = if ic >= 3 { ch } else { 0 };
+                    let px00 = px[(y0 * iw + x0) * ic + src_ch] as f32;
+                    let px10 = px[(y0 * iw + x1) * ic + src_ch] as f32;
+                    let px01 = px[(y1 * iw + x0) * ic + src_ch] as f32;
+                    let px11 = px[(y1 * iw + x1) * ic + src_ch] as f32;
+                    let v = px00 * (1.0 - fxx) * (1.0 - fyy)
+                        + px10 * fxx * (1.0 - fyy)
+                        + px01 * (1.0 - fxx) * fyy
+                        + px11 * fxx * fyy;
+                    data[(oy * out_w + ox) * 3 + ch] = v.round().clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+        Image::from_raw(out_w, out_h, 3, data)
     }
 
     /// 识别一批文本行图像（批内 pad 到统一宽度，一次前向，逐行 CTC 解码）。
@@ -727,6 +829,12 @@ pub struct OcrPipeline {
 }
 
 impl OcrPipeline {
+    /// 调试：导出某区域的摆正行图。
+    pub fn crop_line_for_debug(&self, image: &Image, region: &TextRegion) -> Result<Image> {
+        self.recognizer.crop_region(image, region)
+    }
+
+
     /// 创建 OCR 流水线（det onnx + rec onnx + 字典 + 设备）。
     pub fn new(
         det_model_path: impl AsRef<std::path::Path>,

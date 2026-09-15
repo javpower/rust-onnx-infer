@@ -853,8 +853,8 @@ smoke!(ocr_pipeline_v5, "OCR 流水线（PP-OCRv5 mobile det + rec，中英混�
         .collect::<Vec<_>>()
         .join(" ");
     eprintln!("文本: {all_text}");
-    assert!(all_text.contains("OCR"), "v5 应识别出 OCR 字样");
-    assert!(all_text.contains("2026"), "v5 应识别出 2026");
+    assert!(all_text.contains("OCR"), "v5 应识别出 OCR 字样: {all_text}");
+    assert!(all_text.contains("2026"), "v5 应识别出 2026: {all_text}");
     assert!(results.iter().all(|(_, l)| l.score > 0.7), "v5 识别置信度应 > 0.7");
 });
 
